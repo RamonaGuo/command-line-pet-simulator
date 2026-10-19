@@ -1,0 +1,256 @@
+
+# argparse handles startup options; json handles save-file data.
+# Path is imported but is not used in the current version.
+import argparse
+import json
+from pathlib import Path
+
+# Store the save file beside this script.
+SAVE_PATH = Path(__file__).resolve().parent / "pet_status.json"
+
+
+# 1. Base class: define the state and behavior shared by all pets.
+class Pet:
+    # Each pet has its own name, age, hunger, and energy.
+    # Default values are used when these arguments are not provided.
+    def __init__(self, name, age=0, hunger=0, energy=0):
+        self.name = name
+        self.age = age
+        self.hunger = hunger
+        self.energy = energy
+
+    # Convert 10 energy points into one additional year of age.
+    def grow(self):
+        if self.energy >= 10:
+            self.age += 1
+            self.energy -= 10
+            print(f"Your {self.name} grows up! Age: {self.age}")
+
+    # Provide a shared feeding message for subclasses to reuse.
+    def eat(self, food):
+        print(f"{self.name} eats {food}.")
+
+    # Subclasses must provide their own play behavior.
+    # Calling this base implementation raises an error.
+    def play(self):
+        raise NotImplementedError("Subclasses must implement play().")
+
+
+# Cat inherits the attributes and common methods defined in Pet.
+class Cat(Pet):
+    # Class attribute: a type label shared by all Cat instances.
+    pet_type = "cat"   
+    
+        
+    # Override the parent's eat method to apply cat-specific rules.
+    def eat(self, food):
+        # Call the parent's method to display the shared feeding message.
+        super().eat(food)
+
+        # Fish gives extra energy; any other food gives one energy point.
+        if food == "fish":
+            self.energy += 2
+            print(f"{self.name}: I like fish! energy +2")
+        else:
+            self.energy += 1
+            print(f"{self.name}: energy +1")
+
+        # Check whether the updated energy is enough to grow.
+        self.grow()
+
+    # Playing increases hunger and displays the cat's response.
+    def play(self):
+        self.hunger += 1
+        print(f"{self.name}: As a cat, I do not want to move!")
+        
+    # Cat-specific behavior, triggered by the voice command.
+    def meow(self):
+        print(f"{self.name}: Meow!")
+
+
+# Dog inherits the same common state but defines its own behavior.
+class Dog(Pet):
+    # Class attribute: a type label shared by all Dog instances.
+    pet_type = "dog"
+    
+    # Override the parent's eat method to apply dog-specific rules.
+    def eat(self, food):
+        # Reuse the parent's feeding message before updating energy.
+        super().eat(food)
+
+        # A bone gives extra energy; any other food gives one energy point.
+        if food == "bone":
+            self.energy += 2
+            print(f"{self.name}: I like bones! energy +2")
+        else:
+            self.energy += 1
+            print(f"{self.name}: energy +1")
+
+        # Check whether the updated energy is enough to grow.
+        self.grow()
+
+    # Playing increases hunger and displays the dog's response.
+    def play(self):
+        self.hunger += 1
+        print(f"{self.name}: Fun! I want to play more with you!")
+        
+    
+    # Dog-specific behavior, triggered by the voice command.
+    def bark(self):
+        print(f"{self.name}: Woof!")
+        
+        
+
+# 2. Save the information needed to restore the pet in a future session.
+def save_game_status(pet):
+    # Collect the object's type and current state in a dictionary.
+    # Methods are defined in the classes and are not stored in the file.
+    dict_pet_status ={
+        "type":pet.pet_type,
+        "name":pet.name,
+        "hunger":pet.hunger,
+        "energy":pet.energy,
+        "age":pet.age
+    }
+
+        
+    # Write mode creates the file or overwrites the existing save.
+    # The with statement closes the file automatically.
+    with open(save_path,"w",encoding="utf-8") as f:    
+        # Convert the dictionary to JSON; indentation improves readability.
+        json.dump(dict_pet_status,f,indent=4)
+    
+    print(f"status saved:{dict_pet_status}")
+    
+
+# 3. Read a local save file and return its data as a Python dictionary.
+def load_game_status():
+    
+    # Read mode requires the save file to exist.
+    with open(save_path,"r") as f:
+        status=json.load(f)
+        
+    # Return the data; the main program will use it to restore an object.
+    return status    
+
+
+
+# Earlier interactive setup is retained below as comments.
+# Startup arguments now provide these values instead.
+# pet_type = input("Choose your pet (cat/dog): ")
+# name = input("Enter your pet's name: ")
+
+# 
+# 4.Define the command-line options accepted when the program starts.
+parser=argparse.ArgumentParser()
+
+# Require a mode: create a new pet or restore the saved pet.
+parser.add_argument(
+    "--mode",
+    choices=["new","load"],
+    required=True,
+    help="choose'new'to create a new pet,choose 'load' to see your old pet"
+)
+
+
+# Restrict the pet type to cat or dog when this option is provided.
+# Load mode obtains the type from the save file instead.
+parser.add_argument(
+    "--type",
+    choices=["cat","dog"],
+    help="pet type"
+    )
+
+# Read the pet's name as a string.
+parser.add_argument(
+    "--name",
+    type=str,
+    help = "pet name"
+)
+
+# Parse the actual command-line arguments into an object.
+args = parser.parse_args()
+
+# Extract the values used during initialization.
+pet_type =args.type
+name = args.name
+mode =args.mode
+
+
+#互动1：询问“新建”还是“继续”
+# New mode creates a pet with the requested name and initial state.
+if mode == "new":
+
+    if pet_type == "cat":
+        pet = Cat(name, age=0, hunger=0, energy=0)
+    elif pet_type == "dog":
+        pet = Dog(name, age=0, hunger=0, energy=0)
+    else:
+        # None indicates that no usable pet object was created.
+        pet = None
+        print("Invalid pet type!") 
+        
+else:
+    # The only other allowed mode is load.
+    # First read the saved data, then restore the corresponding object.
+    status = load_game_status()
+    
+    # The saved type determines which subclass to instantiate.
+    # Positional arguments follow: name, age, hunger, energy.
+    if status["type"] == "cat":
+        pet = Cat(status["name"], status["age"], status["hunger"], status["energy"])
+    elif status["type"] == "dog":
+        pet = Dog(status["name"], status["age"], status["hunger"], status["energy"])
+    else:
+        pet = None
+        print("No old pet's informatiom!") 
+
+
+
+
+# 互动2：获得pet信息后，交互游戏逻辑
+# Both initialization paths join here and use the same interaction loop.
+# Start the game only if a pet object was created successfully.
+if pet is not None:
+    print(f"You created a {pet.pet_type} named {pet.name}!")
+
+    # Keep accepting commands until the user chooses to quit.
+    while True:
+        choice = input("Enter p to play, f to feed, s for status,Enter v to hear your pet's voice, q to quit: ")
+
+        # The object's class determines which play method runs.
+        if choice == "p":
+            pet.play()
+
+        # Read the food, then let the pet apply its own feeding rules.
+        elif choice == "f":
+            food = input("What food do you want to give? ")
+            pet.eat(food)
+
+        # Display the current state without changing it.
+        elif choice == "s":
+            print(f"Name: {pet.name}")
+            print(f"Age: {pet.age}")
+            print(f"Hunger: {pet.hunger}")
+            print(f"energy: {pet.energy}")
+            
+        # Use the type label to select the pet-specific voice method.
+        elif choice == "v":
+            if pet.pet_type == "cat":
+                pet.meow()
+            elif pet.pet_type == "dog":
+                pet.bark()
+
+        # Save the current state before ending the interaction loop.
+        elif choice == "q":
+            
+            save_game_status(pet)
+            
+            print("Goodbye!")
+            
+            # Exit the nearest loop.
+            break
+
+        else:
+            # Unrecognized commands leave the pet's state unchanged.
+            print("Invalid choice!")
