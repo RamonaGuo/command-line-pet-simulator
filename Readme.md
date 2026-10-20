@@ -6,6 +6,11 @@ A Python command-line pet game with cats, dogs, and JSON save files.
 
 Python 3.10 or later. No third-party packages required.
 
+# Download game
+```bash
+git clone https://github.com/RamonaGuo/command-line-pet-simulator.git
+```
+
 ## Start a new game
 
 ```bash
